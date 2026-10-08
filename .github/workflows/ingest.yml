@@ -2,12 +2,12 @@ name: Ingest news and build feed
 
 on:
   workflow_dispatch: {}
-  # Uncomment once Chris has reviewed the projected monthly cost (see README
-  # "Turning on the schedule"). Runs every 2 hours UTC; the first step skips
-  # the rest of the job outside 07:00-23:00 Europe/Madrid local time, so the
-  # cron doesn't need to track daylight saving itself.
-  # schedule:
-  #   - cron: '0 */2 * * *'
+  # Cost projection approved by Chris on 2026-10-09 (see README "Turning on
+  # the schedule"). Runs every 2 hours UTC; the first step skips the rest of
+  # the job outside 07:00-23:00 Europe/Madrid local time, so the cron doesn't
+  # need to track daylight saving itself.
+  schedule:
+    - cron: '0 */2 * * *'
 
 jobs:
   build:

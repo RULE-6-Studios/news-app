@@ -103,11 +103,12 @@ Ad Fontes match, and are worth Chris reviewing once:
   Spain story to a US/World story as "the same event" -- looser, since the
   language differs.
 
-## Turning on the schedule
+## The schedule
 
-Nothing runs automatically yet. `.github/workflows/ingest.yml` has a
-`workflow_dispatch` trigger (so it can be run by hand from the Actions tab or
-`gh workflow run ingest.yml`) and a commented-out `schedule` trigger.
+Chris approved the cost projection on 2026-10-09; the `schedule` trigger in
+`.github/workflows/ingest.yml` is live -- it runs every 2 hours, 07:00-23:00
+Europe/Madrid. It can also be run by hand anytime from the Actions tab or
+`gh workflow run ingest.yml`.
 
 **Before uncommenting the schedule**, run the workflow by hand a few times and
 check `data/usage-log.json` (or the Action's log output) for the real per-run
@@ -140,9 +141,24 @@ Required repo secrets (Settings -> Secrets and variables -> Actions):
 
 ## Access
 
-The deployed site should sit behind Cloudflare Access, restricted to Chris's
-email (and Amy's, only if Chris says so). That's configured in the Cloudflare
-dashboard against the Pages project, not in this repo.
+**Status as of 2026-10-09: the site is LIVE and PUBLIC at
+https://news-app-69h.pages.dev -- Access is not yet wired up.** Cloudflare
+Access requires Zero Trust to be enabled on the account first (Dashboard ->
+Zero Trust -> pick a team domain), which is a one-time manual click only
+Chris can do -- it's not available via the API before that. Once that's
+done, tell Claude (or run this by hand): create a self-hosted Access
+application for host `news-app-69h.pages.dev`, with one policy, action
+Allow, rule "Emails" = chris@rule6.io (add Amy's email to the same rule only
+if Chris says so). That's configured in Cloudflare, not in this repo.
+
+## Known npm advisories
+
+`npm audit` flags protobufjs/onnxruntime-web/sharp vulnerabilities pulled in
+by `@xenova/transformers`. The only fix available right now is a breaking
+downgrade to an old `@xenova/transformers` version, so this wasn't applied
+automatically. Exploiting them needs a malicious protobuf/model/image input;
+this app only ever feeds it our own fetched RSS headlines, so exposure is
+low, but re-check `npm audit` occasionally in case a non-breaking fix lands.
 
 ## Hard rules this app follows
 

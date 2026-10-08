@@ -9,11 +9,15 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "verify-feeds": "node scripts/verify-feeds.mjs"
+    "verify-feeds": "node scripts/verify-feeds.mjs",
+    "deploy": "wrangler pages deploy web --project-name=news-app"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.132.1",
     "@xenova/transformers": "^2.17.2",
     "rss-parser": "^3.13.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.149.0"
   }
 }

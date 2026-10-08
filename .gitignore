@@ -3,3 +3,9 @@ node_modules/
 .DS_Store
 *.log
 /data/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example
