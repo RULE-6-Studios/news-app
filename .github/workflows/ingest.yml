@@ -1,0 +1,71 @@
+name: Ingest news and build feed
+
+on:
+  workflow_dispatch: {}
+  # Uncomment once Chris has reviewed the projected monthly cost (see README
+  # "Turning on the schedule"). Runs every 2 hours UTC; the first step skips
+  # the rest of the job outside 07:00-23:00 Europe/Madrid local time, so the
+  # cron doesn't need to track daylight saving itself.
+  # schedule:
+  #   - cron: '0 */2 * * *'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip outside Valencia waking hours
+        id: gate
+        run: |
+          hour=$(TZ=Europe/Madrid date +%H)
+          if [ "$hour" -lt 7 ] || [ "$hour" -gt 23 ]; then
+            echo "Local Madrid hour is $hour, outside 07:00-23:00 -- skipping."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Restore rolling data cache (embeddings, slant scores, cross-border cache)
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: news-data-${{ github.run_id }}
+          restore-keys: news-data-
+
+      - name: Install dependencies
+        if: steps.gate.outputs.run == 'true'
+        run: npm ci
+
+      - name: Run ingestion + scoring build
+        if: steps.gate.outputs.run == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npm run build
+
+      - name: Save rolling data cache
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: news-data-${{ github.run_id }}
+
+      - name: Copy feed for the front end
+        if: steps.gate.outputs.run == 'true'
+        run: cp data/stories.json web/data/stories.json
+
+      - name: Deploy to Cloudflare Pages
+        if: steps.gate.outputs.run == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy web --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }}

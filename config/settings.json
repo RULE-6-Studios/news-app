@@ -1,0 +1,18 @@
+{
+  "blindspotThresholdPct": 15,
+  "minSourcesForStory": 2,
+  "articleWindowHours": 72,
+  "clusterSimilarityThreshold": 0.8,
+  "crossBorderSimilarityThreshold": 0.72,
+  "models": {
+    "articleScoring": "claude-haiku-4-5-20251001",
+    "storySummary": "claude-sonnet-5",
+    "crossBorderComparison": "claude-sonnet-5"
+  },
+  "embeddingModel": "Xenova/paraphrase-multilingual-MiniLM-L12-v2",
+  "tabs": [
+    { "id": "es", "label": "Valencia & Spain", "countries": ["ES"] },
+    { "id": "us", "label": "US", "countries": ["US"] },
+    { "id": "world", "label": "World", "countries": ["GB", "FR", "DE", "QA", "INTL"] }
+  ]
+}
