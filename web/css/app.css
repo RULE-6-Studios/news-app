@@ -259,7 +259,8 @@ button { font-family: inherit; }
 .lean-chip.LeanRight { color: var(--right-text); background: var(--right-tint); }
 .lean-chip.Right { color: #FFFFFF; background: var(--right); }
 
-.headline { font-size: 17px; line-height: 1.3; color: var(--muted); }
+.headline { font-size: 17px; line-height: 1.3; color: var(--ink); }
+.headline-original { font-size: 13px; line-height: 1.3; color: var(--muted); margin-top: -4px; }
 
 .slant-track {
   position: relative;

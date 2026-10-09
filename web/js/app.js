@@ -169,9 +169,11 @@ function renderArticleCard(article) {
     h('span', { class: 'score' }, score),
     h('a', { href: article.url, target: '_blank', rel: 'noopener' }, 'Read original'),
   ]);
+  const showOriginal = article.headline && article.headlineEn && article.headline !== article.headlineEn;
   return h('div', { class: 'article-card' }, [
     top,
-    h('div', { class: 'headline serif' }, article.headline),
+    h('div', { class: 'headline serif' }, article.headlineEn || article.headline),
+    showOriginal ? h('div', { class: 'headline-original serif' }, article.headline) : null,
     track,
     slantRow,
     article.slantReason ? h('span', { class: 'slant-reason' }, article.slantReason) : null,

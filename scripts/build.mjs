@@ -93,20 +93,24 @@ async function buildStory(cluster) {
   }
 
   // Story summary -- cached, regenerated only once the cluster has grown
-  // meaningfully so we don't re-pay for a Sonnet call every 2 hours.
+  // meaningfully so we don't re-pay for a Sonnet call every 2 hours. Summaries
+  // cached before the English-only guarantee was added (no `englishFixed`
+  // marker) get regenerated once too, so older stories pick it up.
   const cached = storySummaryCache[storyId];
   let summary = cached;
-  if (!cached || total - cached.memberCount >= 3) {
+  if (!cached || total - cached.memberCount >= 3 || !cached.englishFixed) {
     const result = await summarizeStory({ model: settings.models.storySummary, articles: members });
-    summary = { kicker: result.kicker, title: result.title, summary: result.summary, memberCount: total };
+    summary = { kicker: result.kicker, title: result.title, summary: result.summary, memberCount: total, englishFixed: true };
     storySummaryCache[storyId] = summary;
   }
 
   // Per-article slant -- scored once per article, cached on the article record.
+  // headlineEn comes from this same call (no extra API call); articles scored
+  // before that field existed get rescored once so they pick it up too.
   for (const m of members) {
-    if (!m.slant) {
+    if (!m.slant || !m.slant.headlineEn) {
       const result = await scoreArticleSlant({ model: settings.models.articleScoring, article: m, siblingArticles: members });
-      m.slant = { score: result.score, direction: result.direction, reason: result.reason };
+      m.slant = { score: result.score, direction: result.direction, reason: result.reason, headlineEn: result.headlineEn };
     }
   }
 
@@ -117,6 +121,7 @@ async function buildStory(cluster) {
       outlet: m.outlet,
       lean: m.lean,
       headline: m.title,
+      headlineEn: m.slant?.headlineEn ?? m.title,
       url: m.url,
       slantScore: m.slant?.score ?? null,
       slantDirection: m.slant?.direction ?? 'neutral',

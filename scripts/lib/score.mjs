@@ -23,7 +23,7 @@ export async function scoreArticleSlant({ model, article, siblingArticles }) {
     .map((s) => `- [${s.outlet}, ${s.lean}] ${s.title}`)
     .join('\n') || '(no other articles in this cluster)';
 
-  const system = `You rate news articles for slant on a strict 0-10 scale (0 = neutral/factual, 10 = extremely one-sided), plus a direction. You never store or quote full article bodies -- you only see the headline and a short feed snippet, same as the reader will. Judge from: loaded/charged language in the headline/snippet, signs of one-sided sourcing, whether the headline oversells what the snippet actually supports, and what this article's framing omits compared to the sibling headlines from other outlets covering the same story. Respond with ONLY a JSON object: {"score": <0-10 integer>, "direction": "leans left"|"leans right"|"neutral", "reason": "<one short sentence, specific to this article, e.g. naming the loaded word or the omission>"}`;
+  const system = `You rate news articles for slant on a strict 0-10 scale (0 = neutral/factual, 10 = extremely one-sided), plus a direction, and you translate the headline. You never store or quote full article bodies -- you only see the headline and a short feed snippet, same as the reader will. Judge slant from: loaded/charged language in the headline/snippet, signs of one-sided sourcing, whether the headline oversells what the snippet actually supports, and what this article's framing omits compared to the sibling headlines from other outlets covering the same story. Respond with ONLY a JSON object: {"headlineEn": "<the headline translated into natural English; if it is already in English, repeat it unchanged -- never leave this in the source language>", "score": <0-10 integer>, "direction": "leans left"|"leans right"|"neutral", "reason": "<one short sentence, specific to this article, e.g. naming the loaded word or the omission>"}`;
 
   const user = `Outlet: ${article.outlet} (outlet's own lean label: ${article.lean})
 Headline: ${article.title}
@@ -36,18 +36,19 @@ ${siblingList}`;
     model,
     system,
     messages: [{ role: 'user', content: user }],
-    maxTokens: 200,
+    maxTokens: 250,
     action: 'score-article',
   });
 
   const parsed = parseJsonLoose(text);
   if (!parsed) {
-    return { score: null, direction: 'neutral', reason: 'Scoring failed to parse; treat as unscored.', record };
+    return { score: null, direction: 'neutral', reason: 'Scoring failed to parse; treat as unscored.', headlineEn: article.title, record };
   }
   return {
     score: Math.max(0, Math.min(10, Math.round(Number(parsed.score) ?? 0))),
     direction: ['leans left', 'leans right', 'neutral'].includes(parsed.direction) ? parsed.direction : 'neutral',
     reason: String(parsed.reason ?? '').slice(0, 200),
+    headlineEn: String(parsed.headlineEn ?? article.title).slice(0, 300),
     record,
   };
 }
@@ -60,7 +61,7 @@ export async function summarizeStory({ model, articles }) {
     .map((a) => `- [${a.outlet}, ${a.lean}] ${a.title}${a.summary ? ' -- ' + a.summary : ''}`)
     .join('\n');
 
-  const system = `You write short, neutral news-story summaries from a list of headlines and short snippets from multiple outlets covering the same event. You never saw the full articles. Respond with ONLY a JSON object: {"kicker": "<Region · Topic, max 4 words>", "title": "<one neutral sentence describing the event, max 20 words>", "summary": "<2-3 neutral sentences synthesizing what happened, max 60 words, no editorializing>"}`;
+  const system = `You write short, neutral news-story summaries from a list of headlines and short snippets from multiple outlets covering the same event. The source headlines may be in Spanish, French, or other languages -- you ALWAYS write your kicker, title, and summary in English, regardless of what language the sources are in. You never saw the full articles. Respond with ONLY a JSON object: {"kicker": "<Region · Topic, max 4 words, in English>", "title": "<one neutral sentence describing the event in English, max 20 words>", "summary": "<2-3 neutral sentences in English synthesizing what happened, max 60 words, no editorializing>"}`;
 
   const user = `Headlines covering this story:\n${list}`;
 
