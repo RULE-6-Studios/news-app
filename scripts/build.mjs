@@ -220,7 +220,14 @@ saveArticles(articles); // persist slant scores computed this run
 
 appendUsageLog(getUsageLog());
 const usage = summarizeUsage();
-console.log(`\nDone. ${usage.calls} Claude call(s) this run, ~$${usage.totalCost.toFixed(4)}.`);
+console.log(`\nFinished. ${usage.calls} Claude call(s) this run, ~$${usage.totalCost.toFixed(4)}.`);
 for (const [action, stats] of Object.entries(usage.byAction)) {
   console.log(`  ${action}: ${stats.calls} call(s), ~$${stats.costUsd.toFixed(4)}`);
 }
+
+// The embedding model (onnxruntime) keeps background handles open, so Node
+// never exits on its own once the model has loaded. Before Oct 14 this left
+// every run that embedded new articles sitting idle after finishing its work
+// until GitHub killed it, so nothing deployed. Exit explicitly.
+stage('Done');
+process.exit(0);
