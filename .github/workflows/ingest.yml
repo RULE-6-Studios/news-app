@@ -21,7 +21,8 @@ on:
 
 concurrency:
   group: ingest
-  cancel-in-progress: false
+  # A new run replaces one already going (runs are capped at 45 min anyway).
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -76,7 +77,9 @@ jobs:
         run: npm run build
 
       - name: Save rolling data cache
-        if: steps.gate.outputs.run == 'true'
+        # always(): keep partial progress even if the build step fails, so the
+        # next run picks up where this one stopped instead of starting over.
+        if: always() && steps.gate.outputs.run == 'true'
         uses: actions/cache/save@v4
         with:
           path: data

@@ -8,6 +8,7 @@ import { embed } from './lib/embed.mjs';
 import { clusterArticles, findCrossBorderPairs } from './lib/cluster.mjs';
 import { scoreArticleSlant, summarizeStory, compareCrossBorder } from './lib/score.mjs';
 import { getUsageLog, summarizeUsage } from './lib/claude.mjs';
+import { stage, pastSoftDeadline, noteSoftDeadline, mapPool } from './lib/progress.mjs';
 import {
   stableId, loadSettings, loadArticles, saveArticles, pruneOld,
   saveStories, appendUsageLog, saveFeedHealth,
@@ -18,7 +19,7 @@ const settings = loadSettings();
 const outlets = loadOutlets();
 const outletById = new Map(outlets.map((o) => [o.outlet, o]));
 
-console.log(`Fetching ${outlets.length} feeds...`);
+stage(`Fetching ${outlets.length} feeds`);
 const { items, failures } = await fetchAllFeeds(outlets);
 saveFeedHealth(failures);
 if (failures.length) {
@@ -40,12 +41,13 @@ for (const item of items) {
 articles = pruneOld([...byId.values()], settings.articleWindowHours);
 
 const missingEmbeddings = articles.filter((a) => !a.embedding);
-console.log(`Embedding ${missingEmbeddings.length} new article(s)...`);
+stage(`Embedding ${missingEmbeddings.length} new article(s)`);
 for (const a of missingEmbeddings) {
   a.embedding = await embed(`${a.title}. ${a.summary}`);
 }
 saveArticles(articles);
 
+stage('Clustering');
 // Cluster within each tab's country group -- same-event grouping stays mostly
 // same-language, which keeps clusters tight.
 const tabClusters = {};
@@ -98,7 +100,11 @@ async function buildStory(cluster) {
   // marker) get regenerated once too, so older stories pick it up.
   const cached = storySummaryCache[storyId];
   let summary = cached;
-  if (!cached || total - cached.memberCount >= 3 || !cached.englishFixed) {
+  const needsSummary = !cached || total - cached.memberCount >= 3 || !cached.englishFixed;
+  if (needsSummary && pastSoftDeadline()) {
+    noteSoftDeadline('skipping new story summaries');
+    if (!cached) return null; // no summary yet -- this story shows up next run
+  } else if (needsSummary) {
     const result = await summarizeStory({ model: settings.models.storySummary, articles: members });
     summary = { kicker: result.kicker, title: result.title, summary: result.summary, memberCount: total, englishFixed: true };
     storySummaryCache[storyId] = summary;
@@ -107,12 +113,12 @@ async function buildStory(cluster) {
   // Per-article slant -- scored once per article, cached on the article record.
   // headlineEn comes from this same call (no extra API call); articles scored
   // before that field existed get rescored once so they pick it up too.
-  for (const m of members) {
-    if (!m.slant || !m.slant.headlineEn) {
-      const result = await scoreArticleSlant({ model: settings.models.articleScoring, article: m, siblingArticles: members });
-      m.slant = { score: result.score, direction: result.direction, reason: result.reason, headlineEn: result.headlineEn };
-    }
-  }
+  const unscored = members.filter((m) => !m.slant || !m.slant.headlineEn);
+  await mapPool(unscored, 4, async (m) => {
+    if (pastSoftDeadline()) { noteSoftDeadline('skipping new article scores'); return; }
+    const result = await scoreArticleSlant({ model: settings.models.articleScoring, article: m, siblingArticles: members });
+    m.slant = { score: result.score, direction: result.direction, reason: result.reason, headlineEn: result.headlineEn };
+  });
 
   const articlesOut = members.map((m) => {
     const side = directionSide(m.slant?.direction ?? 'neutral');
@@ -155,17 +161,22 @@ for (const tab of settings.tabs) {
   eligibleClusters[tab.id] = eligible;
   const skipped = tabClusters[tab.id].length - eligible.length;
   console.log(`${tab.label}: ${eligible.length} multi-source stor${eligible.length === 1 ? 'y' : 'ies'} (${skipped} single-source item(s) skipped).`);
-  const stories = [];
-  for (const cluster of eligible) {
+  stage(`Building ${eligible.length} ${tab.label} stories`);
+  let done = 0;
+  const built = await mapPool(eligible, 3, async (cluster) => {
     const story = await buildStory(cluster);
-    if (story) stories.push(story);
-  }
+    // Save as we go, so a run that gets cut off still keeps its work.
+    if (++done % 10 === 0) { saveArticles(articles); saveStorySummaries(storySummaryCache); }
+    return story;
+  });
+  const stories = built.filter(Boolean);
   stories.sort((a, b) => b.sources - a.sources);
   tabsOut[tab.id] = stories;
 }
 
 // Cross-border links: Spain <-> US, Spain <-> World (each pair stays within
 // its own two countries' lean scales -- never compared on one axis).
+stage('Cross-border comparisons');
 const crossBorder = [];
 const pairDefs = [['es', 'us'], ['es', 'world']];
 for (const [tabA, tabB] of pairDefs) {
@@ -177,7 +188,11 @@ for (const [tabA, tabB] of pairDefs) {
     const pairKey = [storyA.id, storyB.id].sort().join('|');
     const cached = crossBorderCache[pairKey];
     let compared = cached;
-    if (!cached || storyA.sources - cached.sourcesA >= 3 || storyB.sources - cached.sourcesB >= 3) {
+    const needsCompare = !cached || storyA.sources - cached.sourcesA >= 3 || storyB.sources - cached.sourcesB >= 3;
+    if (needsCompare && pastSoftDeadline()) {
+      noteSoftDeadline('skipping new cross-border comparisons');
+      if (!cached) continue;
+    } else if (needsCompare) {
       const tabLabel = (id) => settings.tabs.find((t) => t.id === id)?.label ?? id;
       const result = await compareCrossBorder({
         model: settings.models.crossBorderComparison,
@@ -197,6 +212,7 @@ for (const [tabA, tabB] of pairDefs) {
   }
 }
 
+stage('Saving');
 saveStorySummaries(storySummaryCache);
 saveCrossBorderCache(crossBorderCache);
 saveStories({ tabs: tabsOut, crossBorder });
