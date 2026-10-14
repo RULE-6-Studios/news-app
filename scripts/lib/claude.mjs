@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 
-const client = new Anthropic();
+// Hard per-request timeout so one stalled API call can't hold up the whole run.
+const client = new Anthropic({ timeout: 120_000, maxRetries: 2 });
 
 // $ per million tokens. Verify at https://platform.claude.com/docs/en/about-claude/pricing
 // before switching the schedule on -- prices do change.

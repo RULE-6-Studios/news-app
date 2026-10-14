@@ -1,8 +1,14 @@
 import { pipeline, env } from '@xenova/transformers';
+import { fileURLToPath } from 'url';
+import path from 'path';
 
 // Keep everything local -- no telemetry, no remote model-hub writes beyond the
 // first download (which is cached under node_modules/.cache for later runs).
 env.allowLocalModels = false;
+// Keep the downloaded model in a repo-level folder so GitHub Actions can cache
+// it between runs. Downloading it fresh every run had no timeout and hung
+// several scheduled runs until GitHub killed them at 6 hours (Oct 2026).
+env.cacheDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '.model-cache');
 
 let extractorPromise = null;
 function getExtractor() {

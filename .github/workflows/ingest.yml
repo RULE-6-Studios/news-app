@@ -7,11 +7,18 @@ on:
   # the job outside 07:00-23:00 Europe/Madrid local time, so the cron doesn't
   # need to track daylight saving itself.
   schedule:
-    - cron: '0 */2 * * *'
+    # Minute 17, not 0: GitHub delays and drops on-the-hour schedules.
+    - cron: '17 */2 * * *'
+
+concurrency:
+  group: ingest
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    # A healthy run takes ~10-30 min. Fail fast instead of hanging for 6 hours.
+    timeout-minutes: 45
     steps:
       - name: Skip outside Valencia waking hours
         id: gate
@@ -41,12 +48,20 @@ jobs:
           key: news-data-${{ github.run_id }}
           restore-keys: news-data-
 
+      - name: Restore embedding model cache
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/cache@v4
+        with:
+          path: .model-cache
+          key: embed-model-paraphrase-multilingual-MiniLM-L12-v2
+
       - name: Install dependencies
         if: steps.gate.outputs.run == 'true'
         run: npm ci
 
       - name: Run ingestion + scoring build
         if: steps.gate.outputs.run == 'true'
+        timeout-minutes: 40
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: npm run build
