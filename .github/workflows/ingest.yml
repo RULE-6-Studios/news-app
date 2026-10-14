@@ -2,6 +2,15 @@ name: Ingest news and build feed
 
 on:
   workflow_dispatch: {}
+  # Rebuild right away when the build code or config changes, so a fix goes
+  # live without waiting for the schedule.
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/**'
+      - 'config/**'
+      - 'web/**'
+      - '.github/workflows/ingest.yml'
   # Cost projection approved by Chris on 2026-10-09 (see README "Turning on
   # the schedule"). Runs every 2 hours UTC; the first step skips the rest of
   # the job outside 07:00-23:00 Europe/Madrid local time, so the cron doesn't
