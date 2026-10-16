@@ -21,14 +21,15 @@ on:
 
 concurrency:
   group: ingest
-  # A new run replaces one already going (runs are capped at 45 min anyway).
+  # A new run replaces one already going (runs are capped at 15 min anyway).
   cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    # A healthy run takes ~10-30 min. Fail fast instead of hanging for 6 hours.
-    timeout-minutes: 45
+    # A healthy run takes ~2-5 min. Cap at 15 so a stuck run can't burn the
+    # month's Actions minutes (Oct 2026: 40-min debug runs blew the quota).
+    timeout-minutes: 15
     steps:
       - name: Skip outside Valencia waking hours
         id: gate
@@ -71,7 +72,7 @@ jobs:
 
       - name: Run ingestion + scoring build
         if: steps.gate.outputs.run == 'true'
-        timeout-minutes: 40
+        timeout-minutes: 12
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: npm run build
