@@ -91,6 +91,8 @@ jobs:
           ANTHROPIC_WORKSPACE_ID: wrkspc_01C8KQ57oS3kvvYzdwk9Ehma
           ANTHROPIC_IDENTITY_TOKEN_FILE: ${{ runner.temp }}/anthropic-oidc-jwt
         run: |
+          # The Console rule's subject pattern must use GitHub's ID format:
+          # repo:RULE-6-Studios@276355875/news-app@1410677171:ref:refs/heads/main
           # GitHub OIDC tokens expire about 5 minutes after issue, so refresh
           # the file every 4 minutes in case the first Claude call comes late.
           fetch_jwt() {
@@ -101,10 +103,6 @@ jobs:
           }
           fetch_jwt
           test -s "$ANTHROPIC_IDENTITY_TOKEN_FILE"
-          # Print the token's identity claims (not the token itself) so a
-          # federation rule mismatch can be diagnosed from the run log.
-          cut -d. -f2 "$ANTHROPIC_IDENTITY_TOKEN_FILE" | tr '_-' '/+' | base64 -d 2>/dev/null \
-            | jq -c '{sub, ref, repository, repository_owner, repository_owner_id, event_name}' || true
           ( while sleep 240; do fetch_jwt; done ) &
           npm run build
 
