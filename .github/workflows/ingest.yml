@@ -101,6 +101,10 @@ jobs:
           }
           fetch_jwt
           test -s "$ANTHROPIC_IDENTITY_TOKEN_FILE"
+          # Print the token's identity claims (not the token itself) so a
+          # federation rule mismatch can be diagnosed from the run log.
+          cut -d. -f2 "$ANTHROPIC_IDENTITY_TOKEN_FILE" | tr '_-' '/+' | base64 -d 2>/dev/null \
+            | jq -c '{sub, ref, repository, repository_owner, repository_owner_id, event_name}' || true
           ( while sleep 240; do fetch_jwt; done ) &
           npm run build
 
